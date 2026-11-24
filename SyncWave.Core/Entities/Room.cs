@@ -1,12 +1,10 @@
 ﻿using SyncWave.Core.Enums;
-using System.ComponentModel.Design;
 
 namespace SyncWave.Core.Entities;
 
-// <summary>
-// Описує кімнату для спільного відтворення медіа.
-// </summary>
-
+/// <summary>
+/// Описує кімнату для спільного відтворення медіа.
+/// </summary>
 public class Room
 {
 
@@ -58,11 +56,16 @@ public class Room
         // видаляємо учасника з кімнати
         _participants.Remove(participant);
 
-        // якщо після видалення учасника в кімнаті не залишилося учасників, зупиняємо відтворення та скидаємо позицію
+        // якщо після видалення учасника в кімнаті не залишилося учасників,
+        // повністю скидаємо кімнату: зупиняємо відтворення, прибираємо поточне медіа, позицію та чергу.
+        // Інакше кімната лишиться в суперечливому стані "Stopped, але CurrentMedia є",
+        // і новий EnqueueMedia покладе медіа в чергу замість того, щоб почати відтворення.
         if (_participants.Count == 0)
         {
             State = PlaybackState.Stopped;
+            CurrentMedia = null;
             CurrentPosition = TimeSpan.Zero;
+            _queue.Clear();
         }
     }
 

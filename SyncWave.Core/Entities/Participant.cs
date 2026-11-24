@@ -1,9 +1,8 @@
 ﻿namespace SyncWave.Core.Entities;
 
-// <summary>
-// Описує учасника кімнати.
-// </summary>
-
+/// <summary>
+/// Описує учасника кімнати.
+/// </summary>
 public class Participant
 {
 
