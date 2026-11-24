@@ -1,0 +1,7 @@
+{
+  // VS Code запропонує встановити ці розширення, коли ви відкриєте теку проєкту
+  "recommendations": [
+    "ms-dotnettools.csdevkit",
+    "editorconfig.editorconfig"
+  ]
+}
