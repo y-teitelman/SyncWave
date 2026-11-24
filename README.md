@@ -1,5 +1,7 @@
 # SyncWave
 
+**English** · [Українська](README.uk.md)
+
 [![CI](https://github.com/y-teitelman/SyncWave/actions/workflows/ci.yml/badge.svg)](https://github.com/y-teitelman/SyncWave/actions/workflows/ci.yml)
 
 **SyncWave** is a self-hosted watch-party service for watching and listening to media together in real time. You share a room link with friends (for example, in Discord), they open it in a regular browser, enter a nickname, and everyone sees and hears the same thing at the same moment: one host controls playback (play, pause, seek), and the room shares a common queue. No installs for participants, and the whole setup runs on free tools.
@@ -34,6 +36,7 @@ Not yet implemented (see [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md)):
 
 ```
 SyncWave.sln
+├── README.md / README.uk.md  # Project description in English and Ukrainian
 ├── global.json               # Pins the .NET SDK version (10.0.x)
 ├── .editorconfig             # Shared code style
 ├── .github/workflows/ci.yml  # CI: build and test
