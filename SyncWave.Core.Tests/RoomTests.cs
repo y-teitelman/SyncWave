@@ -1,12 +1,11 @@
-﻿namespace SyncWave.Core.Tests;
-
-using SyncWave.Core.Entities;
+﻿using SyncWave.Core.Entities;
 using SyncWave.Core.Enums;
 
-// <summary>
-// Тестовий клас для перевірки функціональності класу Room.
-// </summary>
+namespace SyncWave.Core.Tests;
 
+/// <summary>
+/// Тестовий клас для перевірки функціональності класу Room.
+/// </summary>
 public class RoomTests
 {
     // Тест для перевірки додавання першого учасника до кімнати та встановлення його як хоста
@@ -73,21 +72,55 @@ public class RoomTests
         Assert.Single(room.Participants);
     }
 
-    // Тест для перевірки видалення останнього учасника з кімнати та перевірки, що хост не встановлений
+    // Тест для перевірки видалення останнього учасника з кімнати: кімната має повністю скинутися
     [Fact]
-    public void RemoveParticipant_WhenLastParticipantLeaves_ShouldHaveNoHost()
+    public void RemoveParticipant_WhenLastParticipantLeaves_ShouldResetRoom()
     {
         // Arrange
-        // Створюємо нову кімнату та одного учасника
+        // Створюємо кімнату з одним учасником, у якій грає медіа і ще одне чекає в черзі
         var room = new Room { RoomCode = "Test-Room" };
         var participant = new Participant { ConnectionId = "Test-Connection", Username = "Test-User" };
-        room.AddParticipant(participant); // Додаємо учасника до кімнати
+        room.AddParticipant(participant);
+        room.EnqueueMedia(new MediaItem { Title = "Song 1", Duration = TimeSpan.FromMinutes(3) });
+        room.EnqueueMedia(new MediaItem { Title = "Song 2", Duration = TimeSpan.FromMinutes(4) });
+        room.SeekTo(TimeSpan.FromSeconds(30));
+
         // Act
-        // Видаляємо учасника з кімнати
+        // Видаляємо останнього учасника з кімнати
         room.RemoveParticipant(participant.ConnectionId);
+
         // Assert
-        // Перевіряємо, що в кімнаті немає учасників та що хост не встановлений
+        // Перевіряємо, що в кімнаті нікого немає, відтворення зупинене, медіа, позиція і черга скинуті
         Assert.Empty(room.Participants);
+        Assert.Equal(PlaybackState.Stopped, room.State);
+        Assert.Null(room.CurrentMedia);
+        Assert.Equal(TimeSpan.Zero, room.CurrentPosition);
+        Assert.Empty(room.Queue);
+    }
+
+    // Регресійний тест: після того як кімната спорожніла, нове медіа має одразу почати грати
+    [Fact]
+    public void EnqueueMedia_AfterRoomBecameEmpty_ShouldStartPlayingImmediately()
+    {
+        // Arrange
+        // Учасник додав медіа, потім вийшов; заходить новий учасник
+        var room = new Room { RoomCode = "Test-Room" };
+        var first = new Participant { ConnectionId = "First-Connection", Username = "First-User" };
+        room.AddParticipant(first);
+        room.EnqueueMedia(new MediaItem { Title = "Old Song", Duration = TimeSpan.FromMinutes(3) });
+        room.RemoveParticipant(first.ConnectionId);
+        room.AddParticipant(new Participant { ConnectionId = "Second-Connection", Username = "Second-User" });
+        var newMedia = new MediaItem { Title = "New Song", Duration = TimeSpan.FromMinutes(2) };
+
+        // Act
+        // Новий учасник додає медіа
+        room.EnqueueMedia(newMedia);
+
+        // Assert
+        // Нове медіа має стати поточним і грати, а не опинитися в черзі
+        Assert.Equal(newMedia, room.CurrentMedia);
+        Assert.Equal(PlaybackState.Playing, room.State);
+        Assert.Empty(room.Queue);
     }
 
     // Тест для перевірки додавання медіа-елемента до черги відтворення, коли нічого не відтворюється
@@ -179,6 +212,116 @@ public class RoomTests
         // Перевіряємо, що поточний медіа-елемент відсутній, стан відтворення встановлений на "Stopped" та позиція відтворення скинута
         Assert.Null(room.CurrentMedia);
         Assert.Equal(PlaybackState.Stopped, room.State);
+        Assert.Equal(TimeSpan.Zero, room.CurrentPosition);
+    }
+
+    // Тест для перевірки паузи під час відтворення
+    [Fact]
+    public void Pause_WhenPlaying_ShouldSetPaused()
+    {
+        // Arrange
+        var room = new Room { RoomCode = "Test-Room" };
+        room.EnqueueMedia(new MediaItem { Title = "Song 1", Duration = TimeSpan.FromMinutes(3) });
+
+        // Act
+        room.Pause();
+
+        // Assert
+        Assert.Equal(PlaybackState.Paused, room.State);
+    }
+
+    // Тест для перевірки, що пауза нічого не змінює, коли нічого не грає
+    [Fact]
+    public void Pause_WhenStopped_ShouldStayStopped()
+    {
+        // Arrange
+        var room = new Room { RoomCode = "Test-Room" };
+
+        // Act
+        room.Pause();
+
+        // Assert
+        Assert.Equal(PlaybackState.Stopped, room.State);
+    }
+
+    // Тест для перевірки відновлення відтворення після паузи
+    [Fact]
+    public void Resume_WhenPaused_ShouldSetPlaying()
+    {
+        // Arrange
+        var room = new Room { RoomCode = "Test-Room" };
+        room.EnqueueMedia(new MediaItem { Title = "Song 1", Duration = TimeSpan.FromMinutes(3) });
+        room.Pause();
+
+        // Act
+        room.Resume();
+
+        // Assert
+        Assert.Equal(PlaybackState.Playing, room.State);
+    }
+
+    // Тест для перевірки, що Resume без медіа не запускає відтворення
+    [Fact]
+    public void Resume_WhenNoMedia_ShouldStayStopped()
+    {
+        // Arrange
+        var room = new Room { RoomCode = "Test-Room" };
+
+        // Act
+        room.Resume();
+
+        // Assert
+        Assert.Equal(PlaybackState.Stopped, room.State);
+    }
+
+    // Тест для перевірки перемотування в межах тривалості медіа (включно з самим кінцем)
+    [Theory]
+    [InlineData(0)]
+    [InlineData(90)]
+    [InlineData(180)] // рівно кінець треку — межа включна
+    public void SeekTo_WhenPositionWithinDuration_ShouldUpdatePosition(int seconds)
+    {
+        // Arrange
+        var room = new Room { RoomCode = "Test-Room" };
+        room.EnqueueMedia(new MediaItem { Title = "Song 1", Duration = TimeSpan.FromMinutes(3) });
+        var position = TimeSpan.FromSeconds(seconds);
+
+        // Act
+        room.SeekTo(position);
+
+        // Assert
+        Assert.Equal(position, room.CurrentPosition);
+    }
+
+    // Тест для перевірки, що позиція за межами медіа ігнорується
+    [Theory]
+    [InlineData(-1)]  // від'ємна позиція
+    [InlineData(181)] // за кінцем треку
+    public void SeekTo_WhenPositionOutOfRange_ShouldKeepCurrentPosition(int seconds)
+    {
+        // Arrange
+        var room = new Room { RoomCode = "Test-Room" };
+        room.EnqueueMedia(new MediaItem { Title = "Song 1", Duration = TimeSpan.FromMinutes(3) });
+        room.SeekTo(TimeSpan.FromSeconds(30));
+
+        // Act
+        room.SeekTo(TimeSpan.FromSeconds(seconds));
+
+        // Assert
+        Assert.Equal(TimeSpan.FromSeconds(30), room.CurrentPosition);
+    }
+
+    // Тест для перевірки, що перемотування без медіа нічого не робить
+    [Fact]
+    public void SeekTo_WhenNoMedia_ShouldKeepZeroPosition()
+    {
+        // Arrange
+        var room = new Room { RoomCode = "Test-Room" };
+
+        // Act
+        room.SeekTo(TimeSpan.FromSeconds(10));
+
+        // Assert
         Assert.Equal(TimeSpan.Zero, room.CurrentPosition);
     }
 
